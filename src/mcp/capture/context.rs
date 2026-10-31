@@ -43,6 +43,20 @@ impl EventContext {
         }
     }
 
+    /// The request context a tool handler runs in, so its spans and captures
+    /// carry the same session, and person when identified, as this call's
+    /// `$mcp_*` events. An anonymous call sets no distinct ID, so captures in
+    /// the handler don't create a person for the session.
+    pub(crate) fn request_context(&self) -> crate::RequestContext {
+        let context = crate::RequestContext::current()
+            .unwrap_or_default()
+            .session_id(self.session_id.as_str());
+        match &self.identity {
+            Some(identity) => context.distinct_id(identity.distinct_id.as_str()),
+            None => context,
+        }
+    }
+
     pub(crate) fn properties(&self) -> Map<String, Value> {
         let mut properties = Map::new();
         properties.insert(

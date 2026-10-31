@@ -174,8 +174,17 @@ impl ServerHandler for TestServer {
             "deploy" if request.input_responses.is_none() => deploy_round().into(),
             "deploy" => text("deployed").into(),
             "explode" => panic!("index out of bounds"),
+            "whoami" => text(request_context_ids()).into(),
             _ => text("Found 3 results").into(),
         };
         Ok(response)
     }
+}
+
+/// The IDs in the PostHog request context the handler runs in.
+fn request_context_ids() -> String {
+    let context = posthog_rs::RequestContext::current().unwrap_or_default();
+    let distinct_id = context.get_distinct_id().unwrap_or("none");
+    let session_id = context.get_session_id().unwrap_or("none");
+    format!("{distinct_id} {session_id}")
 }
