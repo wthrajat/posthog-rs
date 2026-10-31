@@ -70,6 +70,8 @@ Blocking applications use these explicit helpers; they have no ambient scope.
 
 This integration adds analytics context to events. It does not add attributes
 to application-owned tracing or OpenTelemetry spans or install a trace provider.
+To link spans to persons and sessions, use the separate
+[`posthog-rs-otel`](otel/README.md) crate.
 
 ## Contributing
 

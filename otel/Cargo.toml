@@ -1,0 +1,40 @@
+[package]
+name = "posthog-rs-otel"
+license = "MIT"
+version = "0.1.0"
+authors = ["PostHog <engineering@posthog.com>"]
+description = "Links OpenTelemetry spans to PostHog persons and sessions through the posthog-rs request context."
+repository = "https://github.com/posthog/posthog-rs"
+edition = "2021"
+rust-version = "1.78.0"
+
+[dependencies]
+posthog-rs = { path = "..", version = "0.30.0", default-features = false, features = [
+    "async-client",
+] }
+opentelemetry = { version = "0.33", default-features = false, features = [
+    "trace",
+] }
+opentelemetry_sdk = { version = "0.33", default-features = false, features = [
+    "trace",
+] }
+tracing = "0.1"
+tracing-opentelemetry = { version = "0.34", default-features = false }
+
+[dev-dependencies]
+posthog-rs = { path = "..", features = ["tower"] }
+opentelemetry_sdk = { version = "0.33", features = ["testing"] }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = [
+    "trace",
+    "http-json",
+    "reqwest-blocking-client",
+    "reqwest-rustls",
+] }
+tokio = { version = "1", features = ["full"] }
+tracing-subscriber = { version = "0.3", features = ["registry"] }
+axum = { version = "0.8", default-features = false, features = [
+    "http1",
+    "tokio",
+] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace"] }
