@@ -330,10 +330,10 @@ impl Client {
         }
     }
 
-    /// Whether the client is disabled (no transport; capture is a no-op). Used
-    /// by the panic hook to skip building an event it could never send.
-    #[cfg(feature = "error-tracking")]
-    pub(crate) fn is_disabled(&self) -> bool {
+    /// Whether the client is disabled (no transport; capture is a no-op).
+    ///
+    /// Integrations use this to stay inert for a disabled client.
+    pub fn is_disabled(&self) -> bool {
         self.options.is_disabled()
     }
 
