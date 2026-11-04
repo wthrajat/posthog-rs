@@ -5,6 +5,10 @@ version = "0.1.0"
 authors = ["PostHog <engineering@posthog.com>"]
 description = "Links OpenTelemetry spans to PostHog persons and sessions through the posthog-rs request context."
 repository = "https://github.com/posthog/posthog-rs"
+documentation = "https://docs.rs/posthog-rs-otel"
+readme = "README.md"
+keywords = ["posthog", "opentelemetry", "tracing", "analytics", "observability"]
+categories = ["api-bindings", "development-tools::debugging"]
 edition = "2021"
 rust-version = "1.78.0"
 
@@ -22,7 +26,7 @@ tracing = "0.1"
 tracing-opentelemetry = { version = "0.34", default-features = false }
 
 [dev-dependencies]
-posthog-rs = { path = "..", features = ["tower"] }
+posthog-rs = { path = "..", version = "0.30.0", features = ["tower"] }
 opentelemetry_sdk = { version = "0.33", features = ["testing"] }
 opentelemetry-otlp = { version = "0.33", default-features = false, features = [
     "trace",
