@@ -27,9 +27,10 @@ use crate::request_ids::RequestIds;
 ///
 /// The span keeps any ID it was created with: a `sessionId` field blocks the
 /// session ID, and any of [`IDENTITY_ATTRIBUTES`](crate::IDENTITY_ATTRIBUTES)
-/// blocks the distinct ID. Attributes set with
-/// [`OpenTelemetrySpanExt::set_attribute`] can't be read back, so set your
-/// own IDs as span fields, or after this layer runs.
+/// blocks the distinct ID. A declared field blocks even while it's
+/// `Empty`, because `tracing` can't tell whether it has a value. Attributes
+/// set with [`OpenTelemetrySpanExt::set_attribute`] can't be read back, so set
+/// your own IDs as span fields, or after this layer runs.
 #[derive(Clone, Debug)]
 pub struct RequestSpanLayer {
     client_enabled: bool,
@@ -75,7 +76,8 @@ where
 
     fn call(&mut self, request: Request) -> Self::Future {
         if self.client_enabled {
-            add_ids_to_current_span();
+            // Tagging is best effort: a panic in a subscriber must not fail the request.
+            let _ = std::panic::catch_unwind(add_ids_to_current_span);
         }
         self.inner.call(request)
     }

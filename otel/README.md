@@ -83,7 +83,9 @@ To send spans to PostHog, export them over OTLP/HTTP to
   only if it's the current span when that layer runs.
 - `RequestSpanLayer` checks the request span's fields, not attributes set with
   `OpenTelemetrySpanExt::set_attribute`: Rust's OpenTelemetry API can't read
-  those back. Set your own IDs as span fields, or after the layer runs.
+  those back. Set your own IDs as span fields, or after the layer runs. A
+  declared field blocks the ID even while it's `Empty`, because `tracing`
+  can't tell whether it has a value.
 - With `tracing-opentelemetry`, the OpenTelemetry span starts the first time
   something needs it: usually when the `tracing` span is first entered, or
   earlier if its OpenTelemetry context is read, for example by a child span.
