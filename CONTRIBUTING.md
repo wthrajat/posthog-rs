@@ -10,22 +10,23 @@ This repo requires all commits to be signed. To configure commit signing, see th
 
 - Rust `1.78.0` or newer for the SDK library (see `Cargo.toml`). Development and test dependencies may require newer Rust.
 
-CI checks the minimum with both async and blocking clients, including `capture-v1`, using the checked-in lockfile. Dependency ranges still allow customers on newer Rust to use newer releases. When updating the lockfile, keep the library's dependency graph compatible with Rust 1.78 and rerun both MSRV checks; dependency metadata alone can understate the required compiler version.
+CI checks the minimum with both async and blocking clients, including `capture-v1`, and the `posthog-rs-otel` library, using the checked-in lockfile. Dependency ranges still allow customers on newer Rust to use newer releases. When updating the lockfile, keep the libraries' dependency graphs compatible with Rust 1.78 and rerun all three MSRV checks; dependency metadata alone can understate the required compiler version.
 
 ## Development commands
 
 From the repository root:
 
 ```bash
-cargo build --verbose
-cargo test --verbose
+cargo build --workspace --verbose
+cargo test --workspace --verbose
+cargo test --package posthog-rs-otel --all-features --verbose
 cargo test --verbose --features e2e-test --no-default-features
-cargo fmt -- --check
-cargo clippy -- -D warnings
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
 scripts/check-public-api.sh
 ```
 
-`check-public-api.sh` compares the public API in your working tree with the checked-in `api/public-api.txt` snapshot. If an API change is intentional, run `scripts/check-public-api.sh --update` and review the snapshot diff. It requires:
+`check-public-api.sh` compares the public API in your working tree with the checked-in snapshots: `api/public-api.txt` for `posthog-rs` and `api/posthog-rs-otel.txt` for `posthog-rs-otel`. If an API change is intentional, run `scripts/check-public-api.sh --update` and review the snapshot diffs. It requires:
 
 ```bash
 cargo install cargo-public-api --version 0.52.0 --locked
@@ -48,7 +49,7 @@ This section is for external contributors. PostHog maintainers (members of the P
 - Check first whether an existing option or hook, such as `before_send`, already covers the use case. We avoid offering two ways to do the same thing.
 - If a reviewer suggests a different API on your PR, confirm it with them before re-implementing. Treat it as a question, not an instruction.
 
-A diff in `api/public-api.txt` (see "Development commands" above) means your change touches public API.
+A diff in either API snapshot (see "Development commands" above) means your change touches public API.
 
 ## Pull requests
 

@@ -79,6 +79,8 @@ jobs:
     runs-on: ubuntu-latest
     if: always() && needs.check-changesets.outputs.has-changesets == 'true'
     environment: "Release"
+    outputs:
+      released: ${{ steps.sampo-release.outputs.released }}
     permissions:
       contents: read
       actions: write
@@ -130,9 +132,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.releaser.outputs.token }}
         run: |
+          version_of() { grep '^version = ' "$1" | head -1 | sed 's/version = "\(.*\)"/\1/'; }
+          core_before=$(version_of Cargo.toml)
+          otel_before=$(version_of otel/Cargo.toml)
           sampo release
-          new_version=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          new_version=$(version_of Cargo.toml)
+          otel_version=$(version_of otel/Cargo.toml)
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+          echo "otel_version=$otel_version" >> "$GITHUB_OUTPUT"
+          if [ "$new_version" != "$core_before" ]; then
+            echo "core_released=true" >> "$GITHUB_OUTPUT"
+            echo "commit_message=chore: Release v$new_version [skip ci]" >> "$GITHUB_OUTPUT"
+          else
+            echo "commit_message=chore: Release posthog-rs-otel v$otel_version [skip ci]" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$otel_version" != "$otel_before" ]; then
+            echo "otel_released=true" >> "$GITHUB_OUTPUT"
+          fi
+          released=""
+          if [ "$new_version" != "$core_before" ]; then
+            released="posthog-rs@$new_version"
+          fi
+          if [ "$otel_version" != "$otel_before" ]; then
+            released="${released:+$released, }posthog-rs-otel@$otel_version"
+          fi
+          echo "released=$released" >> "$GITHUB_OUTPUT"
 
       - name: Check for changes
         id: check-changes
@@ -149,7 +173,7 @@ jobs:
         if: steps.check-changes.outputs.committed == 'true'
         uses: planetscale/ghcommit-action@a6b150b81dca5dd027baa898604418eec9e11465
         with:
-          commit_message: "chore: Release v${{ steps.sampo-release.outputs.new_version }} [skip ci]"
+          commit_message: ${{ steps.sampo-release.outputs.commit_message }}
           repo: ${{ github.repository }}
           branch: main
         env:
@@ -186,7 +210,7 @@ jobs:
         run: sampo publish
 
       - name: Create GitHub Release
-        if: steps.check-changes.outputs.committed == 'true'
+        if: steps.check-changes.outputs.committed == 'true' && steps.sampo-release.outputs.core_released == 'true'
         env:
           GITHUB_TOKEN: ${{ steps.releaser.outputs.token }}
           NEW_VERSION: ${{ steps.sampo-release.outputs.new_version }}
@@ -194,8 +218,17 @@ jobs:
           CHANGELOG_ENTRY=$(awk -v defText="see CHANGELOG.md" '/^## /{if (flag) exit; flag=1; next} flag; END{if (!flag) print defText}' CHANGELOG.md | sed '/[^[:space:]]/,$!d' | tac | sed '/[^[:space:]]/,$!d' | tac)
           gh release create "$NEW_VERSION" --target main --notes "$CHANGELOG_ENTRY"
 
+      - name: Create GitHub Release for posthog-rs-otel
+        if: steps.check-changes.outputs.committed == 'true' && steps.sampo-release.outputs.otel_released == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.releaser.outputs.token }}
+          NEW_VERSION: ${{ steps.sampo-release.outputs.otel_version }}
+        run: |
+          CHANGELOG_ENTRY=$(awk -v defText="see otel/CHANGELOG.md" '/^## /{if (flag) exit; flag=1; next} flag; END{if (!flag) print defText}' otel/CHANGELOG.md | sed '/[^[:space:]]/,$!d' | tac | sed '/[^[:space:]]/,$!d' | tac)
+          gh release create "posthog-rs-otel-v$NEW_VERSION" --target main --latest=false --notes "$CHANGELOG_ENTRY"
+
       - name: Dispatch posthog upgrade for posthog-rs
-        if: steps.check-changes.outputs.committed == 'true'
+        if: steps.check-changes.outputs.committed == 'true' && steps.sampo-release.outputs.core_released == 'true'
         env:
           PACKAGE_VERSION: ${{ steps.sampo-release.outputs.new_version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -229,7 +262,7 @@ jobs:
               "packageName": "posthog-rs",
               "packageVersion": "${{ steps.sampo-release.outputs.new_version || 'unknown' }}",
               "actionUrl": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "alertText": ":rotating_light: Failed to release posthog-rs@${{ steps.sampo-release.outputs.new_version }} :rotating_light:",
+              "alertText": ":rotating_light: Failed to release ${{ steps.sampo-release.outputs.released || 'posthog-rs' }} :rotating_light:",
               "alertContext": "The release workflow failed before completion."
             }
 
@@ -248,5 +281,5 @@ jobs:
           slack_bot_token: ${{ secrets.SLACK_CLIENT_LIBRARIES_BOT_TOKEN }}
           slack_channel_id: ${{ vars.SLACK_APPROVALS_CLIENT_LIBRARIES_CHANNEL_ID }}
           thread_ts: ${{ needs.notify-approval-needed.outputs.slack_ts }}
-          message: "🚀 posthog-rs released successfully!"
+          message: "🚀 ${{ needs.release.outputs.released || 'posthog-rs' }} released successfully!"
           emoji_reaction: "rocket"

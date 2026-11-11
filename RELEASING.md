@@ -13,6 +13,7 @@ This repository uses [Sampo](https://github.com/bruits/sampo) for versioning, ch
      ```
 
    - Replace `patch` with `minor` or `major` when appropriate.
+   - For the OpenTelemetry crate in `otel/`, use `cargo/posthog-rs-otel`. Each crate is versioned, published and given a GitHub Release on its own. Its releases are tagged `posthog-rs-otel-v<version>`.
 
 2. Create a PR with your changes and the changeset file
 3. Merge to `main` (no release label required)

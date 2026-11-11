@@ -27,7 +27,7 @@ jobs:
           rustup component add rustfmt
 
       - name: Check formatting
-        run: cargo fmt -- --check
+        run: cargo fmt --all -- --check
 
   clippy:
     name: Clippy
@@ -54,10 +54,13 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Clippy
-        run: cargo clippy --tests -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Clippy (mcp)
         run: cargo clippy --tests --features mcp -- -D warnings
+
+      - name: Clippy (OpenTelemetry integration)
+        run: cargo clippy --package posthog-rs-otel --all-targets --all-features -- -D warnings
 
   public-api:
     name: Public API
@@ -94,6 +97,10 @@ jobs:
             toolchain: stable
             cache-key: mcp
             command: cargo build --verbose --features mcp
+          - name: OpenTelemetry integration
+            toolchain: stable
+            cache-key: otel
+            command: cargo build --verbose --package posthog-rs-otel --all-targets --all-features
           - name: MSRV (capture-v1, async client)
             toolchain: "1.78.0"
             cache-key: msrv-async-client
@@ -106,6 +113,10 @@ jobs:
             toolchain: "1.88.0"
             cache-key: msrv-mcp
             command: cargo check --locked --package posthog-rs --lib --features mcp
+          - name: MSRV (OpenTelemetry integration)
+            toolchain: "1.78.0"
+            cache-key: msrv-otel
+            command: cargo check --locked --package posthog-rs-otel --lib --features tower
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -157,7 +168,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Publish dry run
-        run: cargo publish --dry-run --locked
+        run: cargo publish --workspace --dry-run --locked
 
   test:
     name: ${{ matrix.name }}
@@ -187,6 +198,9 @@ jobs:
           - name: Unit test (mcp)
             cache-key: mcp
             command: cargo test --verbose --features mcp
+          - name: Unit test (OpenTelemetry integration)
+            cache-key: otel-test
+            command: cargo test --verbose --package posthog-rs-otel --all-features
           - name: E2E test
             cache-key: e2e
             command: cargo test --verbose --features e2e-test --no-default-features
