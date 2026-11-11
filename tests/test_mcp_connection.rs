@@ -5,7 +5,7 @@
 mod mcp_support;
 
 use mcp_support::recorder::{property, serialized_properties_size, text_property, Recorder};
-use mcp_support::server::{numbered_tools, TestServer, FAILURE_MESSAGE, PAGE_SIZE};
+use mcp_support::server::{numbered_tools, tool, TestServer, FAILURE_MESSAGE, PAGE_SIZE};
 use posthog_rs::mcp::{Identity, McpAnalytics, McpOptions, McpOptionsBuilder};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, JsonObject, ListToolsResult, PaginatedRequestParams,
@@ -263,6 +263,30 @@ async fn a_panicking_handler_is_a_failed_call() {
 }
 
 #[tokio::test]
+async fn a_handler_that_panics_when_called_is_a_failed_call() {
+    let recorder = Recorder::new().await;
+    let explode =
+        tool(json!({ "name": "explode_when_called", "inputSchema": { "type": "object" } }));
+    let server = TestServer::with_tools(vec![explode]);
+    let client = connect(&recorder, server, McpOptions::default()).await;
+
+    let arguments: JsonObject = serde_json::from_value(json!({})).unwrap();
+    let request = CallToolRequestParams::new("explode_when_called").with_arguments(arguments);
+    let reply = tokio::time::timeout(
+        std::time::Duration::from_millis(250),
+        client.call_tool(request),
+    );
+    assert!(reply.await.is_err());
+
+    let event = recorder.only("$mcp_tool_call").await;
+    assert_eq!(text_property(&event, "$mcp_error_type"), "Panic");
+    assert_eq!(
+        text_property(&event, "$mcp_error_message"),
+        "index out of bounds"
+    );
+}
+
+#[tokio::test]
 async fn a_call_to_a_missing_tool_is_recorded_as_unknown() {
     let recorder = Recorder::new().await;
     let client = connect(&recorder, TestServer::new(), McpOptions::default()).await;
@@ -412,6 +436,45 @@ async fn an_identified_call_processes_the_person() {
         Some(&json!(false))
     );
     assert_eq!(property(&event, "$groups"), &json!({ "company": "acme" }));
+}
+
+fn whoami_server() -> TestServer {
+    let whoami = tool(json!({ "name": "whoami", "inputSchema": { "type": "object" } }));
+    TestServer::with_tools(vec![whoami])
+}
+
+#[tokio::test]
+async fn a_tool_runs_in_the_session_of_its_event() {
+    let recorder = Recorder::new().await;
+    let client = connect(&recorder, whoami_server(), McpOptions::default()).await;
+
+    let result = call(&client, "whoami", json!({})).await;
+
+    let event = recorder.only("$mcp_tool_call").await;
+    let session_id = text_property(&event, "$session_id");
+    assert_eq!(
+        texts(&result),
+        vec![format!("none {session_id} / none {session_id}")]
+    );
+}
+
+#[tokio::test]
+async fn an_identified_tool_runs_as_its_person() {
+    let recorder = Recorder::new().await;
+    let options = McpOptionsBuilder::default()
+        .identify(|_| Some(Identity::new("user-123")))
+        .build()
+        .unwrap();
+    let client = connect(&recorder, whoami_server(), options).await;
+
+    let result = call(&client, "whoami", json!({})).await;
+
+    let event = recorder.only("$mcp_tool_call").await;
+    let session_id = text_property(&event, "$session_id");
+    assert_eq!(
+        texts(&result),
+        vec![format!("user-123 {session_id} / user-123 {session_id}")]
+    );
 }
 
 #[tokio::test]

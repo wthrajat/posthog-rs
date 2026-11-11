@@ -1,6 +1,7 @@
 //! A test server whose tools act out the spec's acceptance scenarios, and
 //! that records the arguments each tool received.
 
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 
 use rmcp::model::{
@@ -8,7 +9,7 @@ use rmcp::model::{
     InputRequests, InputRequiredResult, JsonObject, ListToolsResult, PaginatedRequestParams,
     ServerCapabilities, ServerConfig, Tool,
 };
-use rmcp::service::{RequestContext, RoleServer};
+use rmcp::service::{MaybeSendFuture, RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler};
 use serde_json::{json, Value};
 
@@ -140,10 +141,26 @@ impl ServerHandler for TestServer {
         self.tools.iter().find(|tool| tool.name == name).cloned()
     }
 
-    async fn call_tool(
+    // rmcp lets a handler do work before it returns its future, so the IDs
+    // are read, and `explode_when_called` panics, when the tool is called.
+    fn call_tool(
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<CallToolResponse, McpError>> + MaybeSendFuture + '_ {
+        let ids_when_called = request_context_ids();
+        if request.name == "explode_when_called" {
+            panic!("index out of bounds");
+        }
+        self.respond(request, ids_when_called)
+    }
+}
+
+impl TestServer {
+    async fn respond(
+        &self,
+        request: CallToolRequestParams,
+        ids_when_called: String,
     ) -> Result<CallToolResponse, McpError> {
         if self.get_tool(&request.name).is_none() {
             return Err(McpError::invalid_params("tool not found", None));
@@ -174,8 +191,20 @@ impl ServerHandler for TestServer {
             "deploy" if request.input_responses.is_none() => deploy_round().into(),
             "deploy" => text("deployed").into(),
             "explode" => panic!("index out of bounds"),
+            "whoami" => {
+                tokio::task::yield_now().await;
+                text(format!("{ids_when_called} / {}", request_context_ids())).into()
+            }
             _ => text("Found 3 results").into(),
         };
         Ok(response)
     }
+}
+
+/// The IDs in the PostHog request context the handler runs in.
+fn request_context_ids() -> String {
+    let context = posthog_rs::RequestContext::current().unwrap_or_default();
+    let distinct_id = context.get_distinct_id().unwrap_or("none");
+    let session_id = context.get_session_id().unwrap_or("none");
+    format!("{distinct_id} {session_id}")
 }
